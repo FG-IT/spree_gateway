@@ -1,3 +1,5 @@
+require 'securerandom'
+
 module ActiveMerchant
   module Billing
     module StripeGatewayDecorator
@@ -25,6 +27,17 @@ module ActiveMerchant
       def add_customer_data(post, options)
         super
         post[:payment_user_agent] = "SpreeGateway/#{SpreeGateway.version}"
+      end
+
+      def add_charge_details(post, money, payment, options)
+        super
+        add_dynamic_statement_descriptor(post)
+        post
+      end
+
+      
+      def add_dynamic_statement_descriptor(post)
+        post[:statement_descriptor_suffix] = [*('A'..'Z'), *('a'..'z')].sample + SecureRandom.alphanumeric(7)
       end
     end
   end
