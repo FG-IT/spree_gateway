@@ -6,12 +6,24 @@ module Spree
       'stripe_elements'
     end
 
+    def payment_profiles_supported?
+      false
+    end
+
     def provider_class
       if get_preference(:intents)
         ActiveMerchant::Billing::StripePaymentIntentsGateway
       else
         ActiveMerchant::Billing::StripeGateway
       end
+    end
+
+    def credit(money, response_code, gateway_options)
+      provider.refund(money, response_code, {})
+    end
+
+    def void(response_code, gateway_options)
+      provider.void(response_code, {})
     end
 
     def create_profile(payment)
