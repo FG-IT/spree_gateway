@@ -5,35 +5,35 @@
 <% if @client_secret.present? && @pk_key.present? %>
   <script type="text/javascript" src="https://js.stripe.com/v3/"></script>
   <script>
-    var form = document.getElementById('checkout_form_payment_confirm');
+      var form = document.getElementById('checkout_form_payment_confirm');
 
-    function confirmCardPaymentResponseHandler(response) {
-      $.post("/api/v2/storefront/intents/handle_response", { response: response, order_token: "<%= @order.token %>" }).done(function (result) {
-          // conditional needs for spree 3.7
-          if(form.elements["commit"]) {
-              form.elements["commit"].disabled = false;
-          }
-        $('#successBox').html(result.message);
-        $('#successBox').show();
-        form.submit();
-      }).fail(function(result) {
-          if(form.elements["commit"]) {
-              form.elements["commit"].disabled = false;
-          }
-        $('#errorBox').html(result.responseJSON.error);
-        $('#errorBox').show();
+      function confirmCardPaymentResponseHandler(response) {
+          $.post("/api/v2/storefront/intents/handle_response", { response: response, order_token: "<%= @order.token %>" }).done(function (result) {
+              // conditional needs for spree 3.7
+              if(form.elements["commit"]) {
+                  form.elements["commit"].disabled = false;
+              }
+              $('#successBox').html(result.message);
+              $('#successBox').show();
+              form.submit();
+          }).fail(function(result) {
+              if(form.elements["commit"]) {
+                  form.elements["commit"].disabled = false;
+              }
+              $('#errorBox').html(result.responseJSON.error);
+              $('#errorBox').show();
+          });
+      }
+
+      var stripeElements = Stripe("<%= @pk_key %>");
+      stripeElements.confirmCardPayment("<%= @client_secret %>").then(function(result) {
+          $('#infoBox').hide();
+          confirmCardPaymentResponseHandler(result);
       });
-    }
 
-    var stripeElements = Stripe("<%= @pk_key %>");
-    stripeElements.confirmCardPayment("<%= @client_secret %>").then(function(result) {
-      $('#infoBox').hide();
-      confirmCardPaymentResponseHandler(result);
-    });
-
-    document.addEventListener('DOMContentLoaded', function(){
-      form.elements["commit"].value = "continue"
-      form.elements["commit"].disabled = true
-    });
+      document.addEventListener('DOMContentLoaded', function(){
+          form.elements["commit"].value = "continue"
+          form.elements["commit"].disabled = true
+      });
   </script>
 <% end %>
