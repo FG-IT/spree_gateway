@@ -6,6 +6,7 @@ Rails.application.routes.draw do
 end
 
 Spree::Core::Engine.add_routes do
+  patch '/checkout/verify_payment', to: 'checkout#verify_payment', as: :verify_payment
   namespace :api, defaults: { format: 'json' } do
     namespace :v2 do
       namespace :storefront do

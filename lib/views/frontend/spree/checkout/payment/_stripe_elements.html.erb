@@ -1,4 +1,5 @@
 <% param_prefix = "payment_source[#{payment_method.id}]" %>
+<div id='stripeElementsError' class='errorExplanation alert alert-danger' style='display:none'></div>
 <div class="well clearfix">
   <p class="field">
     <%= text_field_tag "#{param_prefix}[name]", "#{@order.bill_address_firstname} #{@order.bill_address_lastname}", { id: "name_on_card_#{payment_method.id}", class: 'spree-flat-input', placeholder: Spree.t(:name_on_card)} %>
@@ -11,10 +12,105 @@
   <!-- Used to display form errors -->
   <div id="card-errors" role="alert"></div>
 </div>
-
-<script type="text/javascript" src="https://js.stripe.com/v3/"></script>
+<style>
+  /* Spinner animation only – does not affect other elements */
+  @keyframes spin {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+</style>
+<div id="orderModal" 
+       style="
+         position:fixed;
+         top:0; left:0;
+         width:100%; height:100%;
+         background-color:rgba(0,0,0,0.5);
+         display:none;
+         justify-content:center;
+         align-items:center;
+         z-index:9999;
+         pointer-events:auto; 
+       ">
+  <!-- Modal Content -->
+  <div id="processingInfo" 
+      style="
+        background:#fff;
+        padding:40px 30px;
+        border-radius:10px;
+        text-align:center;
+        pointer-events:auto;
+        margin:0 20px 0 20px;
+        display: none;
+      ">
+    <!-- Spinner -->
+    <div style="
+          width:40px; 
+          height:40px; 
+          border:4px solid #ccc; 
+          border-top-color: #ff2b15; 
+          border-radius:50%;
+          margin:0 auto 15px;
+          animation:spin 1s linear infinite;
+        ">
+    </div>
+    <h2 style="margin:0 0 10px; font-size:20px; color:#333;">
+      Processing Your Order
+    </h2>
+    <p style="margin:0 0 10px; color:#666;">
+      Please wait while we complete your order.
+    </p>
+    <p style="margin:0; font-weight:bold;">
+      Do not refresh, leave this page, or press the back button.
+    </p>
+  </div>
+</div>
+<script src="https://js.stripe.com/basil/stripe.js"></script>
 
 <script>
+  var controlFlow = {
+    ordeModalEle: document.getElementById('orderModal'),
+    processingInfoEle: document.getElementById('processingInfo'),
+    
+    openModal: function() {
+      this.ordeModalEle.style.display = 'flex';
+    },
+    closeModal: function() {
+      this.ordeModalEle.style.display = 'none';
+    },
+    showProcessingInfo: function() {
+      this.openModal();
+      this.processingInfoEle.style.display = 'block';
+    },
+    hideProcessingInfo: function() {
+      this.processingInfoEle.style.display = 'none';
+    },
+    showError: function(err) {
+      this.closeModal();
+      var erorrEle = document.getElementById('stripeElementsError');
+      document.querySelector('#checkout form input[type=submit]').value = 'Complete Order';
+      Spree.enableSave();
+      erorrEle.scrollIntoView();
+      erorrEle.style.display = 'block';
+      erorrEle.textContent = err;
+    },
+    clearError: function() {
+      var erorrEle = document.getElementById('stripeElementsError');
+      erorrEle.style.display = 'none';
+      erorrEle.textContent = '';
+    },
+    refreshWithError: function(error) {
+      localStorage.setItem('lastError', error);
+      window.location.reload();
+    },
+    displayLastError: function() {
+      var errorMessage = localStorage.getItem('lastError');
+      if (errorMessage) {
+        this.showError(errorMessage);
+      }
+      localStorage.removeItem('lastError');
+    }
+  }
+  
   var stripeElements = Stripe("<%= payment_method.preferred_publishable_key %>");
   var elements = stripeElements.elements();
   var spreeFlatInputStyle = getComputedStyle(document.querySelector('input.spree-flat-input'));
@@ -48,17 +144,63 @@
     },
   });
 
+  function handleNextAction(clientSecret, paymentId) {
+    if (!clientSecret || !paymentId) {
+      return ;
+    }
+    controlFlow.hideProcessingInfo();
+    stripeElements.handleNextAction({
+      clientSecret: clientSecret
+    }).then(function(result) {
+      if (result.error) {
+        console.log(result.error);
+        controlFlow.refreshWithError(result.error.message);
+      } else if (result.paymentIntent) {
+        controlFlow.showProcessingInfo();
+        fetch('/checkout/verify_payment', {
+          method: 'PATCH',
+          redirect: 'manual',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            payment_id: paymentId
+          })
+        }).then(response => {
+          return response.json();
+        }).then(data => {
+          if (data.redirect) {
+            window.location = data.redirect;
+          }
+          if (data.error) {
+            controlFlow.closeModal();
+            console.log(data.error);
+          }
+          console.log(data);
+        }).catch(error => {
+          
+          console.error('Fetch error:', error);
+        }).finally(()=> {
+          
+        })
+        console.log('paymentId to confirm ', paymentId);
+      }
+    });
+  }
+
   window.addEventListener('DOMContentLoaded', function () {
+    controlFlow.displayLastError();
+
     card.mount('#card-element');
 
     card.on('ready', function () {
       Spree.stripeElementsPaymentMethod = $('#payment_method_' + <%= payment_method.id %>);
-      Spree.stripeElementsPaymentMethod.prepend("<div id='stripeElementsError' class='errorExplanation alert alert-danger' style='display:none'></div>");
       var form = document.getElementById('checkout_form_payment');
 
       form.addEventListener('submit', function(e) {
         if (Spree.stripeElementsPaymentMethod.is(':visible')) {
-          $('#stripeElementsError').hide();
+          controlFlow.clearError();
           e.preventDefault();
           createStripeElementsToken();
         }
@@ -86,19 +228,37 @@
     addCreditCardFieldToForm(form, '<%= param_prefix %>[number]', token.card.last4)
     addCreditCardFieldToForm(form, '<%= param_prefix %>[month]', token.card.exp_month)
     addCreditCardFieldToForm(form, '<%= param_prefix %>[year]', token.card.exp_year)
-    form.submit();
+    // form.submit();
+    const formData = new FormData(form);
+
+    fetch(form.action, {
+      redirect: 'manual',
+      method: form.method,
+      headers: { 
+        'X-Requested-With': 'XMLHttpRequest',
+        'Accept': 'text/javascript'
+      }, // Tells Rails to treat it like remote: true
+      body: formData
+    })
+    .then(response => {
+      if (response.redirected) {
+        window.location = response.url;
+      } else {
+        return response.text();
+      }
+    })
+    .then(js => {
+      // Execute the JS Rails sent back (equivalent to format.js)
+      eval(js);
+    });
   };
 
   function createStripeElementsToken() {
     stripeElements.createToken(card, Spree.stripeAdditionalInfo).then(function (result) {
       if (result.error) {
-        // Inform the user if there was an error
-        var errorElement = document.getElementById('card-errors');
-
-        $('#stripeElementsError').html(result.error.message);
-        $('#stripeElementsError').show()
-        Spree.enableSave();
+        controlFlow.showError(result.error.message);
       } else {
+        controlFlow.showProcessingInfo();
         stripeElementsTokenHandler(result.token);
       }
     });
