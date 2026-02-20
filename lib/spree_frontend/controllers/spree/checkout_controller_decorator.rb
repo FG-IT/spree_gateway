@@ -11,7 +11,7 @@ module Spree
       @payment.payment_method.verify_intent(@payment)
       respond_to do |format|
         if @order.next
-          format.json { render json: {redirect: completion_route } }
+          format.json { render json: {redirect: spree.order_path(@order) } }
         else 
           format.json { render json: {error: @order.errors.full_messages.join("\n") }}
         end
