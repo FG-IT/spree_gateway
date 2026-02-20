@@ -14,6 +14,19 @@ module Spree
       end
     end
 
+    def verify_intent(payment)
+      response = provider.show_intent(payment.response_code, {})
+      if response.success?
+        if ['processing', 'requires_capture', 'succeeded'].include?(response.params['status'])
+          payment.pend!
+        else
+          payment.send(:gateway_error, 'payment is not valid')
+        end
+      else
+        payment.send(:gateway_error, response.message)
+      end
+    end
+
     def create_profile(payment)
       return unless payment.source.gateway_customer_profile_id.nil?
 

@@ -3,7 +3,7 @@
 <div id='infoBox' class='alert alert-info'><%= t('spree.please_wait_for_confirmation_popup') %></div>
 
 <% if @client_secret.present? && @pk_key.present? %>
-  <script type="text/javascript" src="https://js.stripe.com/v3/"></script>
+  <script src="https://js.stripe.com/basil/stripe.js"></script>
   <script>
       var form = document.getElementById('checkout_form_payment_confirm');
 
@@ -25,8 +25,8 @@
           });
       }
 
-      var stripeElements = Stripe("<%= @pk_key %>");
-      stripeElements.confirmCardPayment("<%= @client_secret %>").then(function(result) {
+      var stripe = Stripe("<%= @pk_key %>");
+      stripe.handleNextAction("<%= @client_secret %>").then(function(result) {
           $('#infoBox').hide();
           confirmCardPaymentResponseHandler(result);
       });
