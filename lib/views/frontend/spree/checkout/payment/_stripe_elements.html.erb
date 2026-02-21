@@ -53,15 +53,17 @@
           animation:spin 1s linear infinite;
         ">
     </div>
-    <h2 style="margin:0 0 10px; font-size:20px; color:#333;">
-      Processing Your Order
-    </h2>
-    <p style="margin:0 0 10px; color:#666;">
-      Please wait while we complete your order.
-    </p>
-    <p style="margin:0; font-weight:bold;">
-      Do not refresh, leave this page, or press the back button.
-    </p>
+    <div id="text-info">
+      <h2 style="margin:0 0 10px; font-size:20px; color:#333;">
+        Processing Your Order
+      </h2>
+      <p style="margin:0 0 10px; color:#666;">
+        Please wait while we complete your order.
+      </p>
+      <p style="margin:0; font-weight:bold;">
+        Do not refresh, leave this page, or press the back button.
+      </p>
+    </div>
   </div>
 </div>
 <script src="https://js.stripe.com/basil/stripe.js"></script>
@@ -79,10 +81,16 @@
     },
     showProcessingInfo: function() {
       this.openModal();
+      this.processingInfoEle.style.background = '#fff';
+      document.getElementById('text-info').style.display = 'block';
       this.processingInfoEle.style.display = 'block';
     },
     hideProcessingInfo: function() {
       this.processingInfoEle.style.display = 'none';
+    },
+    showSpinnerOnly: function() {
+      this.processingInfoEle.style.removeProperty('background');
+      document.getElementById('text-info').style.display = 'none';
     },
     showError: function(err) {
       this.closeModal();
@@ -148,7 +156,7 @@
     if (!clientSecret || !paymentId) {
       return ;
     }
-    controlFlow.hideProcessingInfo();
+    controlFlow.showSpinnerOnly();
     stripeElements.handleNextAction({
       clientSecret: clientSecret
     }).then(function(result) {
@@ -182,7 +190,6 @@
           
           console.error('Fetch error:', error);
         }).finally(()=> {
-          
         })
         console.log('paymentId to confirm ', paymentId);
       }
